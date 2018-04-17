@@ -1,0 +1,45 @@
+library(googleVis)
+library(quantmod)
+library(shiny)
+library(ggplot2)
+library(dplyr)
+library(forecast)
+library(TTR)
+library(data.table)
+library(zoo)
+library(shinydashboard)
+library(DT)
+library(textshape)
+library(plotly)
+library(tidyr)
+library(rsconnect)
+library(dygraphs)
+library(tm)
+library(SnowballC)
+library(wordcloud)
+library(rvest)
+library(tseries)
+library(shinyWidgets)
+library(gridExtra)
+library(tm.plugin.webmining)
+library(openNLP)
+library("qdap")
+library(RCurl)
+library(twitteR)
+library(grid)
+library(lubridate)
+library(ggplot2)
+library(shiny)
+
+source('input.R')
+source('WebMining.R')
+
+compDict = read.csv("~/Dropbox/Courses/R/Shiny-Stock-Dashboard/Info/secwiki_tickers.csv", fill = TRUE, header = TRUE, 
+                    col.names = c("SYM","Name", "Sector", "Industry", "Price", "Collection") )
+# Creating full names for the stocks with company name
+for ( i in 1:dim(stockInfo)[1] ) {
+  if (stockInfo[i,"Stock.SYM"] %in% compDict$SYM) 
+    stockInfo[i, "FullName"] = paste( stockInfo[i, "Stock.SYM"], " (", compDict[compDict$SYM == stockInfo[i,"Stock.SYM"], "Name"], ")", sep = "") 
+  else stockInfo[i, "FullName"] = stockInfo[i, "Stock.SYM"]
+}
+
