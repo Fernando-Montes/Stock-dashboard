@@ -30,6 +30,7 @@ library(grid)
 library(lubridate)
 library(ggplot2)
 library(shiny)
+library(newsapi)
 
 source('input.R')
 source('WebMining.R')

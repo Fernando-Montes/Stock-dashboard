@@ -33,13 +33,10 @@ shinyServer(function(input, output, session){
     else stock <- "A"
   })
   
-  # output$compNameExists <- reactive({ 
-  #   stock() %in% compDict$SYM
-  # })
-  # outputOptions(output, "compNameExists", suspendWhenHidden = FALSE)
-  # output$companyText = renderText({
-  #   as.character(compDict[compDict$SYM == stock(), "Name"])
-  # })
+  stockFull <- reactive({
+    if ( input$price1 %in% stockInfo$FullName ) stock <- stockInfo[stockInfo$FullName == input$price1, "FullName"]  
+    else stock <- " "
+  })
   
   output$sectorText = renderText({
     sectorNum = stockInfo[stockInfo$Stock.SYM == stock(), "Sector.Num"]
@@ -195,6 +192,22 @@ shinyServer(function(input, output, session){
               z = cor_selected(), type = 'heatmap')
   })
   
+  
+  output$varImpTable = renderGvis({
+    withProgress(message = 'Table in progress',
+                 detail = '....', value = 0, {
+                   temp = varImpPlot(input$MLModel, input$numdays)
+                   gvisTable(temp, formats=list("Importance [%]"="#.##"), options=list(page='enable'))
+                 })
+  })
+  
+  output$indicPlot = renderPlotly({
+    withProgress(message = 'Plot in progress',
+                 detail = '....', value = 0, { 
+                 ggplotly( indicatorXYPlot( stock(), input$numdays, input$indDisplay_x, input$indDisplay_y, input$indDisplay_c) )
+                 })
+  })
+  
   # -----------------------------
   # -----------------------------
   
@@ -206,11 +219,15 @@ shinyServer(function(input, output, session){
     stock_selected1() %>% select(., Close) 
   })
   
+  pred_table_stock = reactive({
+    prediction_table_stock(input$numdays, stock())
+  })
+  
   fit_data_pred = reactive({
     res = fit_data()
+    temp = pred_table_stock()
     if(input$Ranger == TRUE) {
-      temp = prediction_table_stock(input$mo, "ranger", stock(), 2)
-      pred = as.data.frame(temp$return)
+      pred = as.data.frame(temp$return_RF)
       colnames(pred) = c("Random Forest")
       rownames(pred) = temp$date.predicted
       pred = xts( pred, order.by=as.POSIXct(rownames(pred)) )
@@ -218,8 +235,7 @@ shinyServer(function(input, output, session){
       res = cbind(res, pred)
     }
     if(input$gbm == TRUE) {
-      temp = prediction_table_stock(input$mo, "gbm", stock(), 2)
-      pred = as.data.frame(temp$return)
+      pred = as.data.frame(temp$return_GBM)
       colnames(pred) = c("GBM")
       rownames(pred) = temp$date.predicted
       pred = xts( pred, order.by=as.POSIXct(rownames(pred)) )
@@ -227,9 +243,8 @@ shinyServer(function(input, output, session){
       res = cbind(res, pred)
     }
     if(input$glmnet == TRUE) {
-      temp = prediction_table_stock(input$mo, "glmnet", stock(), 2)
-      pred = as.data.frame(temp$return)
-      colnames(pred) = c("GLMN")
+      pred = as.data.frame(temp$return_GLMNET)
+      colnames(pred) = c("GLMNET")
       rownames(pred) = temp$date.predicted
       pred = xts( pred, order.by=as.POSIXct(rownames(pred)) )
       res = tryCatch( { xts( res, order.by=as.POSIXct(rownames(res)) ) }, error = function(e) {return (res)} )
@@ -239,9 +254,6 @@ shinyServer(function(input, output, session){
   })
   
   fit_data_zoom = reactive({ 
-    # d1 = which( rownames(fit_data()) == substring(input$arimaplot_date_window[[1]],1,10) ) 
-    # d2 = which( rownames(fit_data()) == substring(input$arimaplot_date_window[[2]],1,10) )
-    # fit_data()[d1:(d2-forecast_n), , FALSE]
     # Need to make sure selected dates are within dataframe, if not adjust
     maxDate = as.Date(rownames(fit_data())[nrow(fit_data())])
     date1 = input$date_range[1] 
@@ -274,7 +286,7 @@ shinyServer(function(input, output, session){
                          dyRangeSelector(retainDateWindow = T) %>% dyAxis("x", valueRange = c(1, 200))
                      } else {
                        start = as.Date(rownames(tail(fit_data_zoom(),1))) 
-                       end   = as.Date(rownames(tail(fit_data_zoom(),1))) %m+% months(input$mo) + 5 #5 extra days...
+                       end   = as.Date(rownames(tail(fit_data_zoom(),1))) + days(input$numdays) + 5 #5 extra days...
                        add_dates =  seq(from=start, to=end, by='day')
                        add_dates = add_dates[!weekdays(add_dates) %in% c('Saturday', 'Sunday')]
                        forecast_n = length(add_dates)
@@ -360,41 +372,47 @@ shinyServer(function(input, output, session){
   
   # Ranger ----
   
+  listValidation = reactive({ validation_plots(input$numdays) })
+  predTable = reactive ({ prediction_table(input$numdays) })
+  
   output$validRanger = renderPlotly({
     withProgress(message = 'Plot in progress',
                  detail = '....', value = 0, {
-                   ggplotly( validation_plot(input$mo, "ranger") )
+                   tmp = listValidation()
+                   ggplotly( tmp$validation_plot_RF )
                  })
   })
   
-  output$validTextRanger = renderText({
-    paste('Validation results between stock price gains and Random Forest predition. Pearson and Spearman coefficients are ', 
-          coeff_text(input$mo, "ranger", "pearson"), " and ", coeff_text(input$mo, "ranger", "spearman") , ", respectively.", sep = "") 
+  output$validTextRanger = renderText({ tmp = listValidation()
+    paste('Validation results between stock price gains and Random Forest prediction. Spearmans coefficient is ', 
+          tmp$coeff_text_RF, sep = "") 
   })
   
   output$residRanger = renderPlotly({
     withProgress(message = 'Plot in progress',
-                 detail = '....', value = 0, {
-                   ggplotly( residual_validation_plot(input$mo, "ranger") )
+                 detail = '....', value = 0, { tmp = listValidation()
+                   ggplotly( tmp$residual_validation_plot_RF )
                  })
   })
   
   output$tableRanger =renderGvis({
-    temp = prediction_table(input$mo, "ranger")
+    temp = predTable()
+    temp = temp$RF
     gvisTable(temp, formats=list("Predicted gain [%]"="#.##"), options=list(page='enable'))
   })
   
   output$tableTextRanger <- renderValueBox({
-    temp = prediction_table(input$mo, "ranger")
+    temp = predTable()
+    temp = temp$RF
     if ( stock() %in% temp$Stock )  
       valueBox( 
         value = tags$p( paste0(temp[temp$Stock == stock(), "Predicted gain [%]"] %>% round(., 2), "%"), style = "font-size: 50%;" ),
-        subtitle = tags$p( paste0("Gain/loss prediction ", input$mo, " month(s) from now for stock ", stock()) ),
+        subtitle = tags$p( paste0("Gain/loss prediction ", input$numdays, " days from now for stock ", stock()) ),
         color = "light-blue"
       )
     else valueBox( 
       value = tags$p( "No information", style = "font-size: 50%;" ), 
-      subtitle = tags$p( paste0("Gain/loss prediction ", input$mo, " month(s) from now for stock ", stock()) ),
+      subtitle = tags$p( paste0("Gain/loss prediction ", input$numdays, " days from now for stock ", stock()) ),
       # icon = icon("list"),
       color = "light-blue"
     )
@@ -403,7 +421,8 @@ shinyServer(function(input, output, session){
   output$rankTextRanger <- renderValueBox({
     withProgress(message = 'Calculation in progress',
                  detail = '....', value = 0, {
-                   temp = prediction_table(input$mo, "ranger")
+                   temp = predTable()
+                   temp = temp$RF
                    if ( stock() %in% temp$Stock )  
                      valueBox(
                        value = tags$p( paste0(round(100-100.*match(stock(), temp$Stock)/length(temp$Stock),1), "%"), style = "font-size: 50%;" ),
@@ -419,42 +438,44 @@ shinyServer(function(input, output, session){
   })
   
   # GBM ----
-  
+
   output$validGbm = renderPlotly({
     withProgress(message = 'Plot in progress',
-                 detail = '....', value = 0, {
-                   ggplotly( validation_plot(input$mo, "gbm") )
+                 detail = '....', value = 0, { tmp = listValidation()
+                   ggplotly( tmp$validation_plot_GBM )
                  })
   })
   
-  output$validTextGbm = renderText({
-    paste('Validation results between stock price gains and GBM predition. Pearson and Spearman coefficients are ', 
-          coeff_text(input$mo, "gbm", "pearson"), " and ", coeff_text(input$mo, "gbm", "spearman") , ", respectively.", sep = "") 
+  output$validTextGbm = renderText({ tmp = listValidation()
+    paste('Validation results between stock price gains and GBM prediction. Spearmans coefficient is ', 
+          tmp$coeff_text_GBM, sep = "") 
   })
   
-  output$residGbm = renderPlotly({
+  output$residGbm = renderPlotly({ tmp = listValidation()
     withProgress(message = 'Plot in progress',
                  detail = '....', value = 0, {
-                   ggplotly( residual_validation_plot(input$mo, "gbm") )
+                   ggplotly( tmp$residual_validation_plot_GBM )
                  })
   })
   
   output$tableGbm =renderGvis({
-    temp = prediction_table(input$mo, "gbm")
+    temp = predTable()
+    temp = temp$GBM
     gvisTable(temp, formats=list("Predicted gain [%]"="#.##"), options=list(page='enable'))
   })
   
   output$tableTextGbm <- renderValueBox({
-    temp = prediction_table(input$mo, "gbm")
+    temp = predTable()
+    temp = temp$GBM
     if ( stock() %in% temp$Stock )  
       valueBox( 
         value = tags$p( paste0(temp[temp$Stock == stock(), "Predicted gain [%]"] %>% round(., 2), "%"), style = "font-size: 50%;" ),
-        subtitle = tags$p( paste0("Gain/loss prediction ", input$mo, " month(s) from now for stock ", stock()) ),
+        subtitle = tags$p( paste0("Gain/loss prediction ", input$numdays, " days from now for stock ", stock()) ),
         color = "light-blue"
       )
     else valueBox( 
       value = tags$p( "No information", style = "font-size: 50%;" ), 
-      subtitle = tags$p( paste0("Gain/loss prediction ", input$mo, " month(s) from now for stock ", stock()) ),
+      subtitle = tags$p( paste0("Gain/loss prediction ", input$numdays, " days from now for stock ", stock()) ),
       # icon = icon("list"),
       color = "light-blue"
     )
@@ -463,7 +484,8 @@ shinyServer(function(input, output, session){
   output$rankTextGbm <- renderValueBox({
     withProgress(message = 'Calculation in progress',
                  detail = '....', value = 0, {
-                   temp = prediction_table(input$mo, "gbm")
+                   temp = predTable()
+                   temp = temp$GBM
                    if ( stock() %in% temp$Stock )  
                      valueBox(
                        value = tags$p( paste0(round(100-100.*match(stock(), temp$Stock)/length(temp$Stock),1), "%"), style = "font-size: 50%;" ),
@@ -482,41 +504,43 @@ shinyServer(function(input, output, session){
   
   # GLMNET ----
   
-  output$validGlmnet = renderPlotly({
+  output$validGlmnet = renderPlotly({ tmp = listValidation()
     withProgress(message = 'Plot in progress',
                  detail = '....', value = 0, {
-                   ggplotly( validation_plot(input$mo, "glmnet") )
+                   ggplotly( tmp$validation_plot_GLMNET )
                  })
   })
   
-  output$validTextGlmnet = renderText({
-    paste('Validation results between stock price gains and GBM predition. Pearson and Spearman coefficients are ', 
-          coeff_text(input$mo, "glmnet", "pearson"), " and ", coeff_text(input$mo, "glmnet", "spearman") , ", respectively.", sep = "") 
+  output$validTextGlmnet = renderText({ tmp = listValidation()
+    paste('Validation results between stock price gains and GLMNET prediction. Spearmans coefficient is ', 
+          tmp$coeff_text_GLMNET, sep = "") 
   })
   
-  output$residGlmnet = renderPlotly({
+  output$residGlmnet = renderPlotly({ tmp = listValidation()
     withProgress(message = 'Plot in progress',
                  detail = '....', value = 0, {
-                   ggplotly( residual_validation_plot(input$mo, "glmnet") )
+                   ggplotly( tmp$residual_validation_plot_GLMNET )
                  })
   })
   
   output$tableGlmnet =renderGvis({
-    temp = prediction_table(input$mo, "glmnet")
+    temp = predTable()
+    temp = temp$GLMNET
     gvisTable(temp, formats=list("Predicted gain [%]"="#.##"), options=list(page='enable'))
   })
   
   output$tableTextGlmnet <- renderValueBox({
-    temp = prediction_table(input$mo, "glmnet")
+    temp = predTable()
+    temp = temp$GLMNET
     if ( stock() %in% temp$Stock )  
       valueBox( 
         value = tags$p( paste0(temp[temp$Stock == stock(), "Predicted gain [%]"] %>% round(., 2), "%"), style = "font-size: 50%;" ),
-        subtitle = tags$p( paste0("Gain/loss prediction ", input$mo, " month(s) from now for stock ", stock()) ),
+        subtitle = tags$p( paste0("Gain/loss prediction ", input$numdays, " days from now for stock ", stock()) ),
         color = "light-blue"
       )
     else valueBox( 
       value = tags$p( "No information", style = "font-size: 50%;" ), 
-      subtitle = tags$p( paste0("Gain/loss prediction ", input$mo, " month(s) from now for stock ", stock()) ),
+      subtitle = tags$p( paste0("Gain/loss prediction ", input$numdays, " days from now for stock ", stock()) ),
       color = "light-blue"
     )
   })
@@ -524,7 +548,8 @@ shinyServer(function(input, output, session){
   output$rankTextGlmnet <- renderValueBox({
     withProgress(message = 'Calculation in progress',
                  detail = '....', value = 0, {
-                   temp = prediction_table(input$mo, "glmnet")
+                   temp = predTable()
+                   temp = temp$GLMNET
                    if ( stock() %in% temp$Stock )  
                      valueBox(
                        value = tags$p( paste0(round(100-100.*match(stock(), temp$Stock)/length(temp$Stock),1), "%"), style = "font-size: 50%;" ),
@@ -549,17 +574,29 @@ shinyServer(function(input, output, session){
   news.plot = reactive({
     withProgress(message = 'Downloading news.. .. may take a minute..',
                  detail = '....', value = 0, {
-                   media.news.plot(stock())
+                   media.news.plot(stock(), stockFull())
                  })
   })
   
   wordcloud_rep <- repeatable(wordcloud)
   
-  output$media.news = renderPlot({
-    wordcloud_rep(words = news.plot()$word, freq = news.plot()$freq, scale = c(2.8, 0.3), random.order = F,
-              min.freq = 1, max.words=60, colors=brewer.pal(8, "Dark2"), fixed.asp = T, use.r.layout = TRUE,
-              rot.per = 0)
-  })
+  output$media.news <- renderUI({
+    output = tagList()
+    temp = news.plot()
+    for (i in 1:min(10, dim(temp)[1]) ) { 
+      output[[i]] = tagList()
+      output[[i]][[1]] = temp$title[i]
+      output[[i]][[2]] = a(temp$url[i], href=temp$url[i])  
+      output[[i]][[3]] = tags$br()
+    }
+    output
+    })
+  
+  #output$media.news = renderPlot({
+  #  wordcloud_rep(words = news.plot()$word, freq = news.plot()$freq, scale = c(2.8, 0.3), random.order = F,
+  #            min.freq = 1, max.words=60, colors=brewer.pal(8, "Dark2"), fixed.asp = T, use.r.layout = TRUE,
+  #            rot.per = 0)
+  #})
   
   tweets.plot = reactive({
     withProgress(message = 'Downloading tweets.. may take a minute..',

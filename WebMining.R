@@ -1,36 +1,13 @@
 source("~/Dropbox/Courses/R/Shiny-Stock-Dashboard/TwitterAuth.R")
 
 # ----------------------------------------------------------------
-# Returns a corpus with the news of the stock between the specified dates
-corpus.function <- function(stock) {
-  corpus <- WebCorpus( YahooFinanceSource(stock, 
-                                          curlOpts = curlOptions(followlocation = TRUE, maxconnects = 20, maxredirs = 20)
-  ))
-  test = ""
-  for (j in 1:length(corpus)) {
-    test = paste(test, corpus[[j]]$content)
-  }
-  test = trimws(test)
-  myCorpus = Corpus(VectorSource(test))
-  return(myCorpus)
-}
 
-# Returns a data frame with words and the frequencies they are used in recent news referring
-# to the stock.
-media.news.plot = function(stock) {
-  # Obtaining corpus from YahooFinance
-  myCorpus = corpus.function(stock)
-  # Corpus processing
-  myCorpusW = tm_map(myCorpus, content_transformer(tolower))
-  myCorpusW = tm_map(myCorpusW, removePunctuation)
-  myCorpusW = tm_map(myCorpusW, removeNumbers)
-  myCorpusW = tm_map(myCorpusW, removeWords, c(stopwords("english"), 'free', 'report', 'stock'))
-  dtm <- TermDocumentMatrix(myCorpusW)
-  m <- as.matrix(dtm)
-  v <- sort(rowSums(m),decreasing=TRUE)
-  d <- data.frame(word = names(v),freq=v)
-  smallbubbles = head(d, 100)
-  return(smallbubbles)
+# Returns news
+media.news.plot = function(stock, stockFull) {
+  # Obtaining news
+  if (stockFull != ' ') {  temp = every_news(stockFull, language = 'en') }
+  else { temp = every_news(stock, language = 'en')  }
+  return(temp)
 }
 
 # Returns a data frame with words and the frequencies they are used in recent tweets referring

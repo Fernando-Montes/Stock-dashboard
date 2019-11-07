@@ -4,10 +4,11 @@ shinyUI(
     dashboardSidebar(
       sidebarMenu(
         menuItem('Price Movement Signals', tabName = 'sig', icon = icon('line-chart')),
-        menuItem('Indicators', tabName = 'ind', icon = icon('signal')),
         list ( menuItem('Forecast', tabName = 'for', icon = icon('area-chart')),
                tags$style(HTML(".js-irs-0 .irs-single, .js-irs-0 .irs-bar-edge, .js-irs-0 .irs-bar {background: light-blue}")),
-               sliderInput('mo', 'Months into the future', min = 1, max = 6, value = 1) ),
+               #selectInput('numdays', 'Days into the future', c('5','10','30')) ),
+               sliderTextInput(inputId = "numdays", label = "Days into the future:", grid = TRUE, force_edges = TRUE, choices = c('5','10','30')) ),
+        menuItem('Indicators', tabName = 'ind', icon = icon('signal')),
         menuItem('Media', tabName = 'med', icon = icon('commenting'))
       ),
       selectizeInput('sector', h5('Sectors'),
@@ -20,9 +21,6 @@ shinyUI(
                      choices = na.omit(unique(stockInfo$FullName)),
                      selected = 'A (Agilent Technologies Inc.)',
                      options = list(maxOptions = 10000) ),
-      # conditionalPanel( condition = "output.compNameExists",
-      #                   fluidRow(
-      #                     box( background = 'black', solidHeader = F, textOutput('companyText'), width = 12 ) ) ),
       conditionalPanel( condition = "input.sector == 'All sectors'",
                         fluidRow(
                           box( background = 'black', solidHeader = F, 'Sector' ),
@@ -66,7 +64,7 @@ shinyUI(
         tabItem(tabName = 'ind',
                 fluidRow(
                   column( width = 3, height = "410px",
-                          box(title = 'Indicator selection (most recent within last 95 days):', 
+                          box(title = 'Indicator selection:', 
                               status = 'primary', solidHeader = T, height = "410px", width = 12,
                               selectizeInput('indict', '', 
                                              choices = c("price", "EV", "EBITDA", "EV.earning", "EV.EBITDA", 
@@ -89,6 +87,28 @@ shinyUI(
                                       plotlyOutput('corr', height = "285")
                                  )
                           )
+                  )
+                ),
+                fluidRow( 
+                  box(width = 12, 
+                      column( width = 6, height = "410px",
+                              selectInput('MLModel', label = h4("Forecast model indicator importance"), 
+                                          choices = list("Random Forest", "Gradient Boosting", "Generalized Linear Model"), 
+                                          selected = "Random Forest"),
+                              box( htmlOutput('varImpTable'), width = 12 )
+                      ),
+                      column( width = 6, height = "410px",
+                              dropdownButton( selectInput("indDisplay_x", label = h5("x-axis"), 
+                                                          choices = IndList, selected = 'Stock price/max price last 6 months'),
+                                              selectInput("indDisplay_y", label = h5("y-axis"), 
+                                                          choices = IndList, selected = 'EV/EBITDA'),
+                                              selectInput("indDisplay_c", label = h5("color"), 
+                                                          choices = IndList, selected = 'Gain/loss Random Forest prediction [%]'),
+                                              circle = FALSE, status = "status", icon = icon("gear"), size = 'default',
+                                              label = 'Click to select indicators to display',
+                                              tooltip = TRUE, up = TRUE ),
+                              box(width = 12, plotlyOutput('indicPlot'), height = 480)
+                      )
                   )
                 )
         ),
@@ -135,7 +155,7 @@ shinyUI(
                          ),
                          tabPanel('Random Forest',
                                   fluidRow(
-                                    column( width = 1, checkboxInput("Ranger", "") ),
+                                    column( width = 1, checkboxInput("Ranger", "", value = TRUE) ),
                                     column( width = 3, includeMarkdown("Info/Ranger.md") ),
                                     column( width = 6, 
                                             conditionalPanel( condition = "input.Ranger == true", 
@@ -159,7 +179,7 @@ shinyUI(
                          ),
                          tabPanel('Gradient Boosting',
                                   fluidRow(
-                                    column( width = 1, checkboxInput("gbm", "") ),
+                                    column( width = 1, checkboxInput("gbm", "", value = TRUE) ),
                                     column( width = 3, includeMarkdown("Info/gbm.md") ),
                                     column( width = 6,
                                             conditionalPanel( condition = "input.gbm == true",
@@ -182,7 +202,7 @@ shinyUI(
                          ),
                          tabPanel('Generalized Linear Model',
                                   fluidRow(
-                                    column( width = 1, checkboxInput("glmnet", "") ),
+                                    column( width = 1, checkboxInput("glmnet", "", value = TRUE) ),
                                     column( width = 3, includeMarkdown("Info/glmnet.md") ),
                                     column( width = 6,
                                             conditionalPanel( condition = "input.glmnet == true",
@@ -208,8 +228,8 @@ shinyUI(
         ),
         tabItem(tabName = 'med',
                 fluidRow(
-                  box(title = 'Words in recent news', solidHeader = T, status = 'primary', width = 6, plotOutput('media.news', height = '500px')),
-                  box(title = 'Words in recent tweets', solidHeader = T, status = 'primary', width = 6, plotOutput('media.twitter', height = '500px'))
+                  box(title = 'Recent news', solidHeader = T, status = 'primary', width = 7, uiOutput('media.news')),
+                  box(title = 'Words in recent tweets', solidHeader = T, status = 'primary', width = 5, plotOutput('media.twitter', height = '500px'))
                 )
         ),
         tabItem( tabName = 'abo', includeMarkdown("Info/About.md") )
