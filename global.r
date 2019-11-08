@@ -28,19 +28,14 @@ library(RCurl)
 library(twitteR)
 library(grid)
 library(lubridate)
-library(ggplot2)
-library(shiny)
 library(newsapi)
 
+source('TwitterAuth.R')
 source('input.R')
 source('WebMining.R')
 
-compDict = read.csv("~/Dropbox/Courses/R/Shiny-Stock-Dashboard/Info/secwiki_tickers.csv", fill = TRUE, header = TRUE, 
-                    col.names = c("SYM","Name", "Sector", "Industry", "Price", "Collection") )
 # Creating full names for the stocks with company name
 for ( i in 1:dim(stockInfo)[1] ) {
-  if (stockInfo[i,"Stock.SYM"] %in% compDict$SYM) 
-    stockInfo[i, "FullName"] = paste( stockInfo[i, "Stock.SYM"], " (", compDict[compDict$SYM == stockInfo[i,"Stock.SYM"], "Name"], ")", sep = "") 
-  else stockInfo[i, "FullName"] = stockInfo[i, "Stock.SYM"]
+    stockInfo[i, "FullName"] = paste( stockInfo[i, "Stock.SYM"], " (", stockInfo[i, "Name"], ")", sep = "") 
 }
 

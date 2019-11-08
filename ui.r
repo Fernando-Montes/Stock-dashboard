@@ -12,14 +12,13 @@ shinyUI(
         menuItem('Media', tabName = 'med', icon = icon('commenting'))
       ),
       selectizeInput('sector', h5('Sectors'),
-                     choices = na.omit(c("All sectors", sort(as.vector(unique(listAll$Sector.Name))))),
+                     choices = na.omit(c("All sectors", sort(unique( stockInfo$Sector )))),
                      selected = "All sectors"),
       selectizeInput('industry', h5('Industry'),
-                     choices = na.omit(c("All industries", sort(as.vector(unique( listAll$Industry.Name ))))),
+                     choices = na.omit(c("All industries", sort(unique( stockInfo$Industry )))),
                      selected = "All industries"),
       selectizeInput('price1', h5('Stock'),
-                     choices = na.omit(unique(stockInfo$FullName)),
-                     selected = 'A (Agilent Technologies Inc.)',
+                     choices = na.omit(sort(unique(stockInfo$FullName))),
                      options = list(maxOptions = 10000) ),
       conditionalPanel( condition = "input.sector == 'All sectors'",
                         fluidRow(
@@ -226,7 +225,7 @@ shinyUI(
                   ) 
                 )
         ),
-        tabItem(tabName = 'med',
+        tabItem(tabName = 'med', uiOutput("BoxPlaceholder"),
                 fluidRow(
                   box(title = 'Recent news', solidHeader = T, status = 'primary', width = 7, uiOutput('media.news')),
                   box(title = 'Words in recent tweets', solidHeader = T, status = 'primary', width = 5, plotOutput('media.twitter', height = '500px'))

@@ -1,8 +1,6 @@
 # Loading functions to be used ----------------------------------------
 
 targetPath <- "~/Dropbox/Courses/R/StockModel-2/ArchiveFin/"
-# Load data frame with Sector.Name, Sector.Num, Industry.Name, Industry.Num into listAll
-load(file = "~/Dropbox/Courses/R/StockModel-2/SectorIndustryInfo.RData")
 # Load stock, sector and industry information into StockInfoAll
 load(file = "~/Dropbox/Courses/R/StockModel-2/ArchiveFin/StockInfo.RData")
 
@@ -18,18 +16,16 @@ indict_b_sto_func = function(stock, flag) {
   fileName <- paste(targetPath, date.file, "+5d.Rdata", sep = "") 
   load(file = fileName)
   # Creating vector of stocks in the given industry
-  if (flag == 0) {
-    ListStocks = as.character(stockInfo$Stock.SYM)
-  } else {
-    # Finding industry number and name that stock belongs to
-    industryNum = stockInfo[stockInfo$Stock.SYM == stock,]$Industry.Num[1]
-    industryName = as.character(listAll[listAll$Industry.Num == industryNum,]$Industry.Name[1])
-    # Finding sector number and name that stock belongs to
-    sectorNum = listAll[listAll$Industry.Num == industryNum,]$Sector.Num[1]
-    sectorName = as.character(listAll[listAll$Sector.Num == sectorNum,]$Sector.Name[1])
-    if (flag == 1) {
-      ListStocks = as.character(stockInfo[stockInfo$Sector.Num == sectorNum,]$Stock.SYM)
-    } else ListStocks = as.character(stockInfo[stockInfo$Industry.Num == industryNum,]$Stock.SYM)
+  if (flag == 0) { # all stocks for all sectors and industries
+    ListStocks = stockInfo$Stock.SYM
+  } 
+  else if (flag == 1) { # all stocks within a given sector
+      sectorName = stockInfo[stockInfo$Stock.SYM == stock, 'Sector']
+      ListStocks = stockInfo[stockInfo$Sector == sectorName,]$Stock.SYM
+    } 
+  else { # all stocks within a given industry
+    industryName = stockInfo[stockInfo$Stock.SYM == stock, 'Industry']
+    ListStocks = stockInfo[stockInfo$Industry == industryName,]$Stock.SYM
   }
   
   # Preparing data frame with stock indicators
@@ -54,10 +50,10 @@ indict_b_sto_func = function(stock, flag) {
     industryStocks[i,"SYM"] = ListStocks[i] #---
     # Adding industry of the stock
     industryStocks[i,"industry"] = ifelse( flag == 2, industryName, 
-        as.character(listAll[listAll$Industry.Num == stockInfo[stockInfo$Stock.SYM == ListStocks[i],]$Industry.Num[1],]$Industry.Name[1]) ) #---
+                                           stockInfo[stockInfo$Stock.SYM == ListStocks[i], 'Industry'] ) #---
     # Adding sector of the stock
-    industryStocks[i,"sector"] = ifelse( flag > 0, sectorName,
-       as.character(listAll[listAll$Industry.Name == industryStocks[i,"industry"],]$Sector.Name[1]) ) #---
+    industryStocks[i,"sector"] = ifelse( flag == 1, sectorName, stockInfo[stockInfo$Stock.SYM == ListStocks[i], 'Sector'] )
+    
     # Checking that the indicator file was created within the last 20 days   
     if ( date.today - date.file < 20  ) {
       temp = table.model[table.model$Stock.SYM == ListStocks[i], ]
@@ -91,17 +87,14 @@ indict_b_sto_func = function(stock, flag) {
 }
 
 # Function that returns data frame with indicators for all industries selected
-# data frame industryStocks (created by function indict_w_sec_func)
 indict_b_ind_func = function(industryStocks, stock, flag) {
   
   # Creating vector of stocks in the given industry
   # Finding industry number and name that stock belongs to
-  industryNum = stockInfo[stockInfo$Stock.SYM == stock,]$Industry.Num[1]
-  industryName = as.character(listAll[listAll$Industry.Num == industryNum,]$Industry.Name[1])
+  industryName = stockInfo[stockInfo$Stock.SYM == stock, 'Industry']
   # Finding sector number and name that stock belongs to
-  sectorNum = listAll[listAll$Industry.Num == industryNum,]$Sector.Num[1]
-  sectorName = as.character(listAll[listAll$Sector.Num == sectorNum,]$Sector.Name[1])
-  
+  sectorName = stockInfo[stockInfo$Stock.SYM == stock, 'Sector']
+
   # Preparing data frame with stock indicators
   industryIndict = data.frame(SYM = character(0),                  # Stock symbol
                               price = numeric(0),                  # Stock price
@@ -122,10 +115,10 @@ indict_b_ind_func = function(industryStocks, stock, flag) {
   
   for(i in 1:length(industryList)) {      # Adding info for each industry
     # Adding name of each industry
-    industryIndict[i,"SYM"] = as.character(industryList[i]) #---
+    industryIndict[i,"SYM"] = industryList[i] #---
     # Adding "industry" that is now the sector
     industryIndict[i,"industry"] = ifelse ( flag > 0, sectorName, 
-                                            as.character(listAll[listAll$Industry.Name == as.character(industryList[i]),]$Sector.Name[1]) ) #---
+                                            stockInfo[stockInfo$Industry == industryList[i],]$Sector[1] ) #---
     # Adding sector of the stock
     industryIndict[i,"sector"] = industryIndict[i,"industry"]
     # Adding average stock price 
@@ -153,7 +146,6 @@ indict_b_ind_func = function(industryStocks, stock, flag) {
 }
 
 # Function that returns data frame with indicators for all sectors selected
-# data frame industryStocks (created by function indict_w_sec_func)
 indict_b_sec_func = function(industryStocks) {
   
   # Preparing data frame with stock indicators
@@ -257,9 +249,8 @@ indict_ave_func = function(industryStocks) {
 # companies within the same industry as columns
 sto_ind_func = function(stock, updateProgress = NULL) {
   # Finding industry number and name that stock belongs to
-  industryNum = stockInfo[stockInfo$Stock.SYM == stock,]$Industry.Num[1]
-  industryName = as.character(listAll[listAll$Industry.Num == industryNum,]$Industry.Name[1])
-  ListStocks = as.character(stockInfo[stockInfo$Industry.Num == industryNum,]$Stock.SYM)
+  industryName = stockInfo[stockInfo$Stock.SYM == stock,]$Industry[1]
+  ListStocks = stockInfo[stockInfo$Industry == industryName,]$Stock.SYM
   
   # Preparing data frame 
   matrix_prices = data.frame(Date = as.Date(character()),       # Date

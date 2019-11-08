@@ -1,51 +1,33 @@
 shinyServer(function(input, output, session){
-  # output$table = DT::renderDataTable({
-  #   datatable(stocks_w_sec, rownames = F)
-  # })
   
   observe({
     if (input$sector == "All sectors" & input$industry == "All industries") st = na.omit( unique( stockInfo$FullName ))
-    else {
-      if(input$industry == "All industries")
-        st = na.omit(unique(stockInfo[stockInfo$Industry.Num %in% listAll[listAll$Sector.Name == input$sector,]$Industry.Num,]$FullName))
-      else st = na.omit(unique(stockInfo[stockInfo$Industry.Num %in% listAll[listAll$Industry.Name == input$industry,]$Industry.Num,]$FullName))
-    }
+    else if(input$industry == "All industries") st = na.omit( unique( stockInfo[stockInfo$Sector == input$sector, 'FullName'] ) )
+    else st = na.omit( unique( stockInfo[stockInfo$Industry == input$industry, 'FullName'] ) )
     st = sort(st)
-    updateSelectizeInput(
-      session, 'price1',
-      choices = st
-      # ,
-      # selected = input$price1
-    )
+    updateSelectizeInput( session, 'price1', choices = st)
   })
   
   observe({
-    if (input$sector == "All sectors") ind = na.omit(c("All industries", sort(as.vector(unique( listAll$Industry.Name )))))
-    else ind = na.omit(c("All industries", sort(as.vector(unique( listAll[listAll$Sector.Name == input$sector,]$Industry.Name )))))
-    updateSelectInput(
-      session, 'industry',
-      choices = ind,
-      selected = "All industries")
+    if (input$sector == "All sectors") ind = na.omit(c("All industries", sort( unique( stockInfo$Industry ))))
+    else ind = na.omit(c("All industries", sort( unique( stockInfo[stockInfo$Sector == input$sector, 'Industry'] ))))
+    updateSelectInput( session, 'industry', choices = ind, selected = "All industries")
   })
 
   stock <- reactive({
-    if ( input$price1 %in% stockInfo$FullName ) stock <- stockInfo[stockInfo$FullName == input$price1, "Stock.SYM"]  
-    else stock <- "A"
+    stock <- stockInfo[stockInfo$FullName == input$price1, "Stock.SYM"]  
   })
   
   stockFull <- reactive({
-    if ( input$price1 %in% stockInfo$FullName ) stock <- stockInfo[stockInfo$FullName == input$price1, "FullName"]  
-    else stock <- " "
+    stock <- stockInfo[stockInfo$FullName == input$price1, "FullName"]  
   })
   
   output$sectorText = renderText({
-    sectorNum = stockInfo[stockInfo$Stock.SYM == stock(), "Sector.Num"]
-    sectorName = as.character(listAll[listAll$Sector.Num == sectorNum,]$Sector.Name[1])
+    sectorName = stockInfo[stockInfo$Stock.SYM == stock(), "Sector"]
   })
   
   output$industryText = renderText({
-    industryNum = stockInfo[stockInfo$Stock.SYM == stock(),]$Industry.Num[1]
-    industryName = as.character(listAll[listAll$Industry.Num == industryNum,]$Industry.Name[1])
+    industryName = stockInfo[stockInfo$Stock.SYM == stock(), "Industry"]
   })
   
   # ----------------------------- 
@@ -571,6 +553,19 @@ shinyServer(function(input, output, session){
   # Media -----------------------
   # -----------------------------
   
+  stock.summary = reactive({
+    stockInfo[stockInfo$FullName == input$price1, "Summary"] 
+  })
+  
+  stock.website = reactive({
+    stockInfo[stockInfo$FullName == input$price1, "Website"] 
+  })
+
+  output$BoxPlaceholder <-  renderUI({
+    box(title = stockFull(), solidHeader = T, status = 'primary', width = 12, 
+        tagList(stock.summary(), a(stock.website(), href=stock.website())) )
+  })
+    
   news.plot = reactive({
     withProgress(message = 'Downloading news.. .. may take a minute..',
                  detail = '....', value = 0, {
@@ -592,12 +587,6 @@ shinyServer(function(input, output, session){
     output
     })
   
-  #output$media.news = renderPlot({
-  #  wordcloud_rep(words = news.plot()$word, freq = news.plot()$freq, scale = c(2.8, 0.3), random.order = F,
-  #            min.freq = 1, max.words=60, colors=brewer.pal(8, "Dark2"), fixed.asp = T, use.r.layout = TRUE,
-  #            rot.per = 0)
-  #})
-  
   tweets.plot = reactive({
     withProgress(message = 'Downloading tweets.. may take a minute..',
                  detail = '....', value = 0, {
@@ -606,8 +595,8 @@ shinyServer(function(input, output, session){
   })
   
   output$media.twitter = renderPlot({
-  wordcloud(words = tweets.plot()$word, freq = tweets.plot()$freq, scale = c(3.0, 0.9), random.order = F,
-            min.freq = 1, max.words=60, colors=brewer.pal(8, "Dark2"), fixed.asp = T, use.r.layout = TRUE,
+  wordcloud(words = tweets.plot()$word, freq = tweets.plot()$freq, random.order = F, #scale = c(3.0, 0.9), 
+            min.freq = 1, max.words=70, colors=brewer.pal(8, "Dark2"), fixed.asp = T, use.r.layout = TRUE,
             rot.per = 0)
   })
   

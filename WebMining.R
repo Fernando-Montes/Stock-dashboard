@@ -1,12 +1,10 @@
-source("~/Dropbox/Courses/R/Shiny-Stock-Dashboard/TwitterAuth.R")
-
 # ----------------------------------------------------------------
 
 # Returns news
 media.news.plot = function(stock, stockFull) {
   # Obtaining news
-  if (stockFull != ' ') {  temp = every_news(stockFull, language = 'en') }
-  else { temp = every_news(stock, language = 'en')  }
+  if (stockFull != ' ')  temp = every_news(removeWords(stockFull, c('INC', 'HOLDINGS', 'COM', 'ONLINE', stock)), language = 'en') 
+  if (stockFull == ' ' | length(temp)==0 )  temp = every_news(stock, language = 'en')  
   return(temp)
 }
 
@@ -14,7 +12,7 @@ media.news.plot = function(stock, stockFull) {
 # to the stock.
 media.tweets.plot = function(stock) {
   # harvest some tweets
-  some_tweets = searchTwitter(paste("$",stock), n=1500, lang="en")
+  some_tweets = searchTwitter(paste("$",stock), n=400, lang="en")
   # get the text
   some_txt = sapply(some_tweets, function(x) x$getText())
   
